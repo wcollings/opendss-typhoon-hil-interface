@@ -462,6 +462,63 @@ def compute_sequence_values(mdl, mask_handle, zseq, mode):
     elif mode == "matrix":
         return [rseq, xseq, xcoup]
 
+def toggle_switches(mdl, mask_handle, created_ports):
+    comp_handle = mdl.get_parent(mask_handle)
+    sw = mdl.get_item('SW',parent=comp_handle,item_type="component")
+    switch_prop = mdl.prop(comp_handle,"has_switch")
+    switch_en = mdl.get_property_value(switch_prop)
+    phases_prop = mdl.prop(comp_handle, "phases")
+    phase_num = mdl.get_property_value(phases_prop)
+    switch_type = {'1': 'core/Single Pole Single Throw Contactor',
+                   '2': 'core/Double Pole Single Throw Contactor',
+                   '3': 'core/Triple Pole Single Throw Contactor'}[phase_num]
+    transmission_line = mdl.get_item("TL", parent=comp_handle, item_type="component")
+    port_a1 = mdl.get_item("A1", parent=comp_handle, item_type="port")
+    port_b1 = None
+    port_c1 = None
+    if int(phase_num) > 1:
+        port_b1 = mdl.get_item("B1", parent=comp_handle, item_type="port")
+        port_b1_pos=mdl.get_position(port_b1)
+    if int(phase_num) > 2:
+        port_c1 = mdl.get_item("C1", parent=comp_handle, item_type="port")
+        port_c1_pos=mdl.get_position(port_c1)
+
+    if switch_en:
+        # Delete connections between ports and transmission line to later place a switch
+        if sw:
+            mdl.delete_item(sw)
+
+        sw = mdl.create_component(
+            switch_type,
+            name="SW",
+            parent=comp_handle,
+            position=(7515, 8035)
+        )
+        port_conn = [
+                [port_a1, 'a_in','a_out','a_in'],
+                [port_b1, 'b_in','b_out','b_in'],
+                [port_c1,'c_in', 'c_out','c_in']
+                ]
+        for ports in port_conn:
+            if ports[0]:
+                if not len(mdl.find_connections(ports[0])) == 0:
+                    mdl.delete_item(mdl.find_connections(ports[0])[0])
+                x,y=mdl.get_position(ports[0])
+                mdl.set_position(ports[0],(7308,y))
+                mdl.create_connection(ports[0], mdl.term(sw,ports[1]))
+                mdl.create_connection(mdl.term(sw,ports[2]),(mdl.term(transmission_line,ports[3])))
+    else:
+        if sw:
+            mdl.delete_item(sw)
+            port_conn = [[port_a1, 'a_in'],[port_b1, 'b_in'],[port_c1,'c_in']]
+            for ports in port_conn:
+                if ports[0]:
+                    if not len(mdl.find_connections(ports[0])) == 0:
+                        mdl.delete_item(mdl.find_connections(ports[0])[0])
+                    x,y=mdl.get_position(ports[0])
+                    mdl.set_position(ports[0],(7408,y))
+                    mdl.create_connection(ports[0], mdl.term(transmission_line,ports[1]))
+
 
 def toggle_coupling(mdl, mask_handle, created_ports):
     """
